@@ -1,0 +1,22 @@
+{
+  "app": "HiyokonikiBlog",
+  "version": "0.0.1",
+  "build": "64f2115",
+  "commit": "64f21154e8034fe96aba567e166c8f8be64a1b3f",
+  "environment": "production",
+  "buildDate": "2026/11/03 16:49:18 JST",
+  "test": {
+    "status": "PASSED",
+    "total": 80,
+    "passed": 80,
+    "failed": 0,
+    "skipped": 0,
+    "successRate": "100.0%"
+  },
+  "coverage": {
+    "lines": "93.58%",
+    "functions": "98.14%",
+    "branches": "77.41%",
+    "statements": "92.26%"
+  }
+}
