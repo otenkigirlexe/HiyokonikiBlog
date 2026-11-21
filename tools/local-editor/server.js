@@ -1,6 +1,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { execFileSync } = require('child_process');
 const Busboy = require('busboy');
 
 const PORT = 3001;
@@ -23,6 +24,17 @@ function isSafePath(parentDir, targetPath) {
 
 // Security helper: allowed media extensions
 const ALLOWED_MEDIA_EXT = new Set(['.webp', '.mp4', '.png', '.jpg', '.jpeg', '.gif', '.avif', '.webm', '.mov']);
+
+// Extensions that should be automatically converted to WebP via cwebp -q 50 (Method A)
+const CWEBP_CONVERTIBLE_EXT = new Set(['.jpg', '.jpeg', '.png']);
+
+function resolveCwebpBinary() {
+  const defaultWinPath = 'C:\\libwebp-1.6.0-windows-x64\\bin\\cwebp.exe';
+  if (fs.existsSync(defaultWinPath)) {
+    return defaultWinPath;
+  }
+  return 'cwebp';
+}
 
 const server = http.createServer((req, res) => {
   // Security: only allow requests from localhost
@@ -236,22 +248,49 @@ const server = http.createServer((req, res) => {
         }
 
         fs.mkdirSync(targetDir, { recursive: true });
-        const targetFilePath = path.resolve(targetDir, safeFilename);
+        const shouldConvertToWebp = CWEBP_CONVERTIBLE_EXT.has(ext);
+        const baseNameWithoutExt = safeFilename.slice(0, safeFilename.length - ext.length);
+        const finalFilename = shouldConvertToWebp ? `${baseNameWithoutExt}.webp` : safeFilename;
+        const finalFilePath = path.resolve(targetDir, finalFilename);
+        const rawWritePath = shouldConvertToWebp
+          ? path.resolve(targetDir, `${safeFilename}.tmp.${Date.now()}`)
+          : finalFilePath;
 
         const writePromise = new Promise((resolve, reject) => {
-          const writeStream = fs.createWriteStream(targetFilePath);
+          const writeStream = fs.createWriteStream(rawWritePath);
           file.pipe(writeStream);
 
           writeStream.on('finish', () => {
-            uploadedFiles.push({
-              filename: safeFilename,
-              url: `/assets/${slug}/${safeFilename}`,
-              isVideo: ext === '.mp4' || ext === '.webm' || ext === '.mov',
-            });
-            resolve();
+            try {
+              if (shouldConvertToWebp) {
+                const cwebpBin = resolveCwebpBinary();
+                execFileSync(cwebpBin, ['-q', '50', rawWritePath, '-o', finalFilePath], {
+                  stdio: 'ignore',
+                });
+                if (fs.existsSync(rawWritePath)) {
+                  fs.rmSync(rawWritePath, { force: true });
+                }
+              }
+
+              uploadedFiles.push({
+                filename: finalFilename,
+                url: `/assets/${slug}/${finalFilename}`,
+                isVideo: ext === '.mp4' || ext === '.webm' || ext === '.mov',
+              });
+              resolve();
+            } catch (convErr) {
+              if (shouldConvertToWebp && fs.existsSync(rawWritePath)) {
+                fs.rmSync(rawWritePath, { force: true });
+              }
+              uploadError = `WebP変換エラー (cwebp): ${convErr.message}`;
+              reject(convErr);
+            }
           });
 
           writeStream.on('error', err => {
+            if (shouldConvertToWebp && fs.existsSync(rawWritePath)) {
+              fs.rmSync(rawWritePath, { force: true });
+            }
             uploadError = `ファイル書き込みエラー: ${err.message}`;
             reject(err);
           });
@@ -347,6 +386,7 @@ const server = http.createServer((req, res) => {
       let bio = null;
       let socialLinksRaw = null;
       let tempImagePath = null;
+      let tempImageExt = '';
       let uploadError = null;
       const writePromises = [];
 
@@ -380,8 +420,9 @@ const server = http.createServer((req, res) => {
 
         const publicDir = path.resolve(REPO_ROOT, 'public');
         fs.mkdirSync(publicDir, { recursive: true });
-        const tmpFile = path.resolve(publicDir, `header.webp.tmp.${Date.now()}`);
+        const tmpFile = path.resolve(publicDir, `header.webp.tmp.${Date.now()}${ext}`);
         tempImagePath = tmpFile;
+        tempImageExt = ext;
 
         const writePromise = new Promise((resolve, reject) => {
           const writeStream = fs.createWriteStream(tmpFile);
@@ -413,13 +454,22 @@ const server = http.createServer((req, res) => {
         }
 
         try {
-          // 1. 新しい画像が選択されていた場合：一時ファイル検証後、既存 header.webp を削除してリネーム
+          // 1. 新しい画像が選択されていた場合：一時ファイル検証後、.jpg/.jpeg/.png なら cwebp -q 50 で WebP 変換し、既存 header.webp を削除してリネーム
           if (tempImagePath) {
             if (!fs.existsSync(tempImagePath) || fs.statSync(tempImagePath).size === 0) {
               if (fs.existsSync(tempImagePath)) fs.rmSync(tempImagePath, { force: true });
               throw new Error('アップロードされた画像ファイルが空です');
             }
             const targetHeaderPath = path.resolve(REPO_ROOT, 'public/header.webp');
+            if (CWEBP_CONVERTIBLE_EXT.has(tempImageExt)) {
+              const convertedTmpPath = `${tempImagePath}.converted.webp`;
+              const cwebpBin = resolveCwebpBinary();
+              execFileSync(cwebpBin, ['-q', '50', tempImagePath, '-o', convertedTmpPath], {
+                stdio: 'ignore',
+              });
+              fs.rmSync(tempImagePath, { force: true });
+              tempImagePath = convertedTmpPath;
+            }
             if (fs.existsSync(targetHeaderPath)) {
               fs.rmSync(targetHeaderPath, { force: true });
             }
