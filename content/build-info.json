@@ -1,22 +1,22 @@
 {
   "app": "HiyokonikiBlog",
-  "version": "0.0.1",
-  "build": "64f2115",
-  "commit": "64f21154e8034fe96aba567e166c8f8be64a1b3f",
+  "version": "0.0.2",
+  "build": "ee1672f",
+  "commit": "ee1672ff30f86475b8febec72e5adc2ddabc94cf",
   "environment": "production",
-  "buildDate": "2026/11/03 16:49:18 JST",
+  "buildDate": "2026/11/22 03:29:22 JST",
   "test": {
     "status": "PASSED",
-    "total": 80,
-    "passed": 80,
+    "total": 86,
+    "passed": 86,
     "failed": 0,
     "skipped": 0,
     "successRate": "100.0%"
   },
   "coverage": {
-    "lines": "93.58%",
-    "functions": "98.14%",
-    "branches": "77.41%",
-    "statements": "92.26%"
+    "lines": "92.17%",
+    "functions": "96.82%",
+    "branches": "77.77%",
+    "statements": "91.21%"
   }
 }

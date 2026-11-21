@@ -98,44 +98,38 @@ describe('02_ホーム右カラム・最新記事・記事一覧・ページネ�
     expect(screen.queryByText('テスト記事タイトル_15')).not.toBeInTheDocument();
   });
 
-  it('02_記事一覧_03 下部ページネーションの「次のページ →」「← 前のページ」および番号ボタンで表示記事が切り替わること', () => {
+  it('02_記事一覧_03 「もっと見る（残り N件）」ボタン押下で10件ずつ追加表示され、全件表示後にボタンが消えること', () => {
+    const posts = createMockPosts(25);
+    const { container } = render(<PostList posts={posts} />);
+
+    expect(container.querySelectorAll('.post-card').length).toBe(10);
+    const loadMoreBtn = screen.getByRole('button', { name: 'もっと見る（残り 15件）' });
+
+    // 1回目の「もっと見る」で20件表示
+    fireEvent.click(loadMoreBtn);
+    expect(container.querySelectorAll('.post-card').length).toBe(20);
+    expect(screen.getByText('テスト記事タイトル_15')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'もっと見る（残り 5件）' })).toBeInTheDocument();
+
+    // 2回目の「もっと見る」で全25件表示＆ボタン消滅
+    fireEvent.click(screen.getByRole('button', { name: 'もっと見る（残り 5件）' }));
+    expect(container.querySelectorAll('.post-card').length).toBe(25);
+    expect(screen.getByText('テスト記事タイトル_1')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /もっと見る/ })).not.toBeInTheDocument();
+  });
+
+  it('02_記事一覧_04 10件以下の場合は「もっと見る」ボタンが表示されないこと', () => {
+    const posts = createMockPosts(10);
+    render(<PostList posts={posts} />);
+
+    expect(screen.queryByRole('button', { name: /もっと見る/ })).not.toBeInTheDocument();
+  });
+
+  it('02_記事一覧_05 もっと見るで展開した11件目以降の記事をクリックした際に sessionStorage にページ相当値 2 が保存されること', () => {
     const posts = createMockPosts(25);
     render(<PostList posts={posts} />);
 
-    // 次のページへ（Page 2）
-    fireEvent.click(screen.getByRole('button', { name: /次のページ/ }));
-    expect(screen.getByText('テスト記事タイトル_15')).toBeInTheDocument();
-    expect(screen.queryByText('テスト記事タイトル_25')).not.toBeInTheDocument();
-
-    // 番号ボタン 3 を押す（Page 3）
-    fireEvent.click(screen.getByRole('button', { name: '3' }));
-    expect(screen.getByText('テスト記事タイトル_5')).toBeInTheDocument();
-
-    // 前のページへ（Page 2）
-    fireEvent.click(screen.getByRole('button', { name: /前のページ/ }));
-    expect(screen.getByText('テスト記事タイトル_15')).toBeInTheDocument();
-  });
-
-  it('02_記事一覧_04 1ページ目では「← 前のページ」がdisabled、最終ページでは「次のページ →」がdisabledになること', () => {
-    const posts = createMockPosts(20);
-    render(<PostList posts={posts} />);
-
-    const prevBtn = screen.getByRole('button', { name: /前のページ/ });
-    const nextBtn = screen.getByRole('button', { name: /次のページ/ });
-
-    expect(prevBtn).toBeDisabled();
-    expect(nextBtn).not.toBeDisabled();
-
-    fireEvent.click(nextBtn);
-    expect(prevBtn).not.toBeDisabled();
-    expect(nextBtn).toBeDisabled();
-  });
-
-  it('02_記事一覧_05 一覧の2ページ目で記事をクリックした際に sessionStorage にページ番号 2 が保存されること', () => {
-    const posts = createMockPosts(25);
-    render(<PostList posts={posts} />);
-
-    fireEvent.click(screen.getByRole('button', { name: '2' }));
+    fireEvent.click(screen.getByRole('button', { name: /もっと見る/ }));
     const targetCard = screen.getByText('テスト記事タイトル_15').closest('a')!;
     expect(targetCard).toHaveAttribute('href', '/20260115/');
 
@@ -235,11 +229,129 @@ describe('02_ホーム右カラム・最新記事・記事一覧・ページネ�
     expect(sessionStorage.getItem('hiyokoniki_from_list')).toBe('true');
   });
 
-  it('02_記事一覧_11 PostList のページ切り替え時に articles-section への smooth スクロールが呼ばれること', () => {
-    const posts = createMockPosts(25);
+  it('02_記事一覧_11 フィルターパネルに「キーワードで検索」「年月で絞り込み」「並び順」の各ラベルが表示されること', () => {
+    const posts: PostMeta[] = [
+      { slug: '20260906', title: '2026年9月の記事', date: '2026-09-06' },
+      { slug: '20250505', title: '2025年5月の記事', date: '2025-05-05' },
+    ];
     render(<PostList posts={posts} />);
 
-    fireEvent.click(screen.getByRole('button', { name: '2' }));
-    expect(sessionStorage.getItem('hiyokoniki_return_page')).toBe('2');
+    expect(screen.getByText('キーワードで検索')).toBeInTheDocument();
+    expect(screen.getByText('年月で絞り込み')).toBeInTheDocument();
+    expect(screen.getByText('並び順')).toBeInTheDocument();
+  });
+
+  it('02_フィルター_02 年を選択した際の月別チップが「XXXX年すべて」の後に1月→12月の昇順で並ぶこと', () => {
+    const posts: PostMeta[] = [
+      { slug: '20261116', title: '11月の記事', date: '2026-11-16' },
+      { slug: '20260208', title: '2月の記事', date: '2026-02-08' },
+      { slug: '20260802', title: '8月の記事', date: '2026-08-02' },
+      { slug: '20250505', title: '2025年の記事', date: '2025-05-05' },
+    ];
+    render(<PostList posts={posts} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /2026/ }));
+    const monthGroup = screen.getByRole('group', { name: '月別フィルター' });
+    const monthLabels = Array.from(monthGroup.querySelectorAll('button')).map(btn => btn.textContent?.trim());
+    expect(monthLabels).toEqual(['2026年すべて', '2月(1)', '8月(1)', '11月(1)']);
+  });
+
+  it('02_検索_01 キーワード入力でタイトル・抜粋がリアルタイム絞り込みされクリアボタンで全件に戻ること', () => {
+    const posts: PostMeta[] = [
+      { slug: '20260802', title: 'Liella!のちゅーとりえらいぶ2026', date: '2026-08-02', excerpt: '南船橋駅でライブ参加' },
+      { slug: '20260808', title: '牛久と都内を散策', date: '2026-08-08', excerpt: '牛久シャトーと鬼塚姉妹' },
+      { slug: '20250505', title: 'ゴールデンウィーク旅行', date: '2025-05-05', excerpt: 'ラーメンを食べた' },
+    ];
+    render(<PostList posts={posts} />);
+
+    const searchInput = screen.getByLabelText('記事を検索');
+    fireEvent.change(searchInput, { target: { value: '牛久' } });
+
+    expect(screen.getByText('1 / 3 Posts')).toBeInTheDocument();
+    expect(screen.getByText('牛久と都内を散策')).toBeInTheDocument();
+    expect(screen.queryByText('Liella!のちゅーとりえらいぶ2026')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('検索をクリア'));
+    expect(screen.getByText('3 Posts')).toBeInTheDocument();
+    expect(screen.getByText('Liella!のちゅーとりえらいぶ2026')).toBeInTheDocument();
+  });
+
+  it('02_検索_02 一致する記事が0件のときに空メッセージと条件リセットボタンが表示されること', () => {
+    const posts = createMockPosts(5);
+    render(<PostList posts={posts} />);
+
+    fireEvent.change(screen.getByLabelText('記事を検索'), { target: { value: '存在しないキーワードXYZ' } });
+    expect(screen.getByText('0 / 5 Posts')).toBeInTheDocument();
+    expect(screen.getByText('条件に一致する記事が見つかりませんでした。')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '条件をリセット' }));
+    expect(screen.getByText('5 Posts')).toBeInTheDocument();
+  });
+
+  it('02_フィルター_01 年別チップおよび月別チップで記事が絞り込めること', () => {
+    const posts: PostMeta[] = [
+      { slug: '20260906', title: '2026年9月の記事', date: '2026-09-06' },
+      { slug: '20260802', title: '2026年8月の記事', date: '2026-08-02' },
+      { slug: '20250505', title: '2025年5月の記事', date: '2025-05-05' },
+    ];
+    render(<PostList posts={posts} />);
+
+    // 2026年を選択
+    fireEvent.click(screen.getByRole('button', { name: /2026/ }));
+    expect(screen.getByText('2 / 3 Posts')).toBeInTheDocument();
+    expect(screen.queryByText('2025年5月の記事')).not.toBeInTheDocument();
+
+    // 8月を選択
+    fireEvent.click(screen.getByRole('button', { name: /8月/ }));
+    expect(screen.getByText('1 / 3 Posts')).toBeInTheDocument();
+    expect(screen.getByText('2026年8月の記事')).toBeInTheDocument();
+    expect(screen.queryByText('2026年9月の記事')).not.toBeInTheDocument();
+  });
+
+  it('02_並び替え_01 新しい順・古い順ボタンで表示順序が切り替わること', () => {
+    const posts: PostMeta[] = [
+      { slug: '20260906', title: '新しい記事', date: '2026-09-06' },
+      { slug: '20250505', title: '古い記事', date: '2025-05-05' },
+    ];
+    const { container } = render(<PostList posts={posts} />);
+
+    let titles = Array.from(container.querySelectorAll('.post-card-title')).map(el => el.textContent);
+    expect(titles).toEqual(['新しい記事', '古い記事']);
+
+    fireEvent.click(screen.getByLabelText('並び替えを切り替え'));
+    expect(screen.getByText('古い順 ↑')).toBeInTheDocument();
+
+    titles = Array.from(container.querySelectorAll('.post-card-title')).map(el => el.textContent);
+    expect(titles).toEqual(['古い記事', '新しい記事']);
+  });
+
+  it('02_状態復元_01 検索・年月・並び順を適用して記事をクリックし「← 記事一覧へ戻る」で戻ると条件が復元され、直接アクセス時は初期化されること', () => {
+    const posts: PostMeta[] = [
+      { slug: '20260906', title: '2026年9月の牛久記事', date: '2026-09-06' },
+      { slug: '20260808', title: '2026年8月の牛久記事', date: '2026-08-08' },
+      { slug: '20250505', title: '2025年5月の別記事', date: '2025-05-05' },
+    ];
+    const { unmount } = render(<PostList posts={posts} />);
+
+    // 検索・年・並び順を変更して記事をクリック
+    fireEvent.change(screen.getByLabelText('記事を検索'), { target: { value: '牛久' } });
+    fireEvent.click(screen.getByRole('button', { name: /2026/ }));
+    fireEvent.click(screen.getByLabelText('並び替えを切り替え'));
+    fireEvent.click(screen.getByText('2026年8月の牛久記事').closest('a')!);
+    unmount();
+
+    // 1. 「← 記事一覧へ戻る」経由（hiyokoniki_restore_active=true）→ 条件が復元されること
+    sessionStorage.setItem('hiyokoniki_restore_active', 'true');
+    const { unmount: unmount2 } = render(<PostList posts={posts} />);
+    expect((screen.getByLabelText('記事を検索') as HTMLInputElement).value).toBe('牛久');
+    expect(screen.getByText('古い順 ↑')).toBeInTheDocument();
+    expect(screen.getByText('2 / 3 Posts')).toBeInTheDocument();
+    unmount2();
+
+    // 2. ヘッダーの「Home」や直接アクセス（restore_activeなし）→ 初期状態に戻ること
+    render(<PostList posts={posts} />);
+    expect((screen.getByLabelText('記事を検索') as HTMLInputElement).value).toBe('');
+    expect(screen.getByText('新しい順 ↓')).toBeInTheDocument();
+    expect(screen.getByText('3 Posts')).toBeInTheDocument();
   });
 });
