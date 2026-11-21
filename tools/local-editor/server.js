@@ -150,14 +150,29 @@ const server = http.createServer((req, res) => {
         fs.mkdirSync(POSTS_DIR, { recursive: true });
         fs.writeFileSync(targetFile, fileContent, 'utf8');
 
-        // Also ensure public/assets/<slug> exists
+        // Also ensure public/assets/<slug> exists and clean up unused media files
         const assetDir = path.resolve(ASSETS_DIR, slug);
+        const removedAssets = [];
         if (!fs.existsSync(assetDir)) {
           fs.mkdirSync(assetDir, { recursive: true });
+        } else if (isSafePath(ASSETS_DIR, assetDir)) {
+          const textToSearch = bodyContent || '';
+          const existingFiles = fs.readdirSync(assetDir);
+          for (const fname of existingFiles) {
+            const fullAssetPath = path.resolve(assetDir, fname);
+            if (!fs.statSync(fullAssetPath).isFile()) continue;
+            // Check if referenced as /assets/<slug>/<fname> or encoded filename
+            const assetUrl = `/assets/${slug}/${fname}`;
+            const encodedAssetUrl = `/assets/${slug}/${encodeURIComponent(fname)}`;
+            if (!textToSearch.includes(assetUrl) && !textToSearch.includes(encodedAssetUrl)) {
+              fs.rmSync(fullAssetPath, { force: true });
+              removedAssets.push(fname);
+            }
+          }
         }
 
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, slug }));
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: true, slug, removedAssets }));
       } catch (err) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: err.message }));

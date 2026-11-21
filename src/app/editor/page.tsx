@@ -168,7 +168,12 @@ export default function EditorPage() {
 
       const result = await res.json();
       if (res.ok) {
-        setStatusMsg(`保存完了: ${slug}.md`);
+        const removedCount = Array.isArray(result.removedAssets) ? result.removedAssets.length : 0;
+        setStatusMsg(
+          removedCount > 0
+            ? `保存完了: ${slug}.md（未使用メディア${removedCount}件を削除）`
+            : `保存完了: ${slug}.md`
+        );
         setSelectedSlug(slug);
         setAllowOverwrite(true);
         fetchPosts();
@@ -418,6 +423,8 @@ export default function EditorPage() {
 
       {/* メイン編集＆プレビューエリア */}
       <main className="post-editor-main">
+        {/* 上部固定エリア：編集ツールバー ＋ 素材アップロード＆ステータスバー */}
+        <div className="post-editor-sticky-bar">
         {/* 編集ツールバー */}
         <header
           style={{
@@ -574,6 +581,7 @@ export default function EditorPage() {
             </span>
           </div>
           <span style={{ color: 'var(--accent-hover)', fontWeight: 600, fontSize: '0.8rem' }}>{statusMsg}</span>
+        </div>
         </div>
 
         {/* 2ペイン：左 Markdown 入力 ／ 右 実際の記事ページと同粒度のリアルタイムプレビュー */}

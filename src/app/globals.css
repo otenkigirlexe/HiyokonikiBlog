@@ -338,6 +338,13 @@ a:hover { color: var(--accent-hover); }
   overflow: hidden;
   min-width: 0;
 }
+.post-editor-sticky-bar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  flex-shrink: 0;
+  background: var(--bg-card);
+}
 .post-editor-panes {
   flex: 1;
   display: flex;
@@ -374,6 +381,9 @@ a:hover { color: var(--accent-hover); }
   .post-editor-main {
     height: auto;
     overflow: visible;
+  }
+  .post-editor-sticky-bar {
+    top: var(--header-height);
   }
   .post-editor-panes {
     flex-direction: column;
