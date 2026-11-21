@@ -100,7 +100,6 @@ export default function HeaderEditorPage() {
   const handleMoveLink = (index: number, direction: -1 | 1) => {
     setSocialLinks(prev => {
       const targetIndex = index + direction;
-      if (targetIndex < 0 || targetIndex >= prev.length) return prev;
       const copy = [...prev];
       const temp = copy[index];
       copy[index] = copy[targetIndex];

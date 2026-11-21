@@ -1,7 +1,7 @@
 # HiyokonikiBlog
 
-![Tests](https://img.shields.io/badge/Tests-80%2B%20passed-brightgreen)
-![Coverage](https://img.shields.io/badge/Coverage-%3E90%25-brightgreen)
+![Tests](https://img.shields.io/badge/Tests-100%20passed-brightgreen)
+![Coverage](https://img.shields.io/badge/Coverage-100%25-brightgreen)
 ![Next.js](https://img.shields.io/badge/Next.js-16.4.6-black)
 ![React](https://img.shields.io/badge/React-19.3.1-blue)
 ![TypeScript](https://img.shields.io/badge/TypeScript-7.0.2-3178C6)

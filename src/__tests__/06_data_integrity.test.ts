@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import matter from 'gray-matter';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { getAllPosts, getPostBySlug, getSiteConfig } from '@/lib/posts';
 
 const REPO_ROOT = process.cwd();
@@ -178,5 +178,75 @@ describe('06_データ整合性・リレーション実在確認・posts.ts 単�
         expect(p.excerpt).not.toMatch(/\[[^\]]+\]\([^)]+\)/);
       }
     }
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('06_データアクセス_07 postsDirectory 不存在時・記事ファイル不存在時・frontmatter欠損時に安全にフォールバックすること', () => {
+    // 1. postsDirectory 不存在時 → []
+    vi.spyOn(fs, 'existsSync').mockReturnValueOnce(false);
+    expect(getAllPosts()).toEqual([]);
+
+    // 2. frontmatter 欠損（title/slug/date なし）＋ 見出し(#)・区切り線(---) を含む記事（昇順・降順混在でソート両分岐網羅）
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fs, 'readdirSync').mockReturnValueOnce(['20260102.md', '20260101.md', '20260103.md'] as any);
+    vi.spyOn(fs, 'readFileSync').mockReturnValue('# 見出し\n---\n本文テキスト\n' as any);
+    const posts = getAllPosts();
+    expect(posts).toHaveLength(3);
+    expect(posts[0].slug).toBe('20260103');
+    expect(posts[2].slug).toBe('20260101');
+    expect(posts[2].title).toBe('20260101');
+    expect(posts[2].date).toBe('');
+    expect(posts[2].excerpt).toBe('本文テキスト');
+
+    // getPostBySlug でも frontmatter 欠損が安全にフォールバックされること
+    vi.spyOn(fs, 'readdirSync').mockReturnValueOnce(['20260101.md'] as any);
+    const detail = getPostBySlug('20260101');
+    expect(detail?.slug).toBe('20260101');
+    expect(detail?.title).toBe('20260101');
+    expect(detail?.date).toBe('');
+
+    // 3. 一覧にはあるが個別ファイルが直前に消えた場合 → null
+    vi.restoreAllMocks();
+    const existsSpy = vi.spyOn(fs, 'existsSync');
+    existsSpy.mockReturnValueOnce(true); // getAllPosts() の postsDirectory
+    existsSpy.mockReturnValueOnce(false); // getPostBySlug() の fullPath
+    vi.spyOn(fs, 'readdirSync').mockReturnValueOnce(['20260101.md'] as any);
+    vi.spyOn(fs, 'readFileSync').mockReturnValueOnce('---\nslug: "20260101"\n---\n本文' as any);
+    expect(getPostBySlug('20260101')).toBeNull();
+  });
+
+  it('06_データアクセス_08 site.json が不存在・破損JSON・型不一致フィールドの場合にデフォルト設定へフォールバックすること', () => {
+    // 1. site.json 不存在
+    vi.spyOn(fs, 'existsSync').mockReturnValueOnce(false);
+    const defCfg = getSiteConfig();
+    expect(defCfg.profileName).toBe('ひよこニキ');
+    expect(defCfg.socialLinks.length).toBe(5);
+
+    // 2. 破損JSON（catch 分岐）
+    vi.spyOn(fs, 'existsSync').mockReturnValueOnce(true);
+    vi.spyOn(fs, 'readFileSync').mockReturnValueOnce('{ broken json' as any);
+    const errCfg = getSiteConfig();
+    expect(errCfg.profileName).toBe('ひよこニキ');
+
+    // 3. 空文字や型不一致フィールド（全フォールバック分岐）
+    vi.spyOn(fs, 'existsSync').mockReturnValueOnce(true);
+    vi.spyOn(fs, 'readFileSync').mockReturnValueOnce(
+      JSON.stringify({
+        headerCaption: '   ',
+        profileName: '',
+        profileHandle: 12345,
+        bio: null,
+        socialLinks: 'not-an-array',
+      }) as any
+    );
+    const fallbackCfg = getSiteConfig();
+    expect(fallbackCfg.headerCaption).toBe('2024年6月27日、ファンミ後の新幹線。');
+    expect(fallbackCfg.profileName).toBe('ひよこニキ');
+    expect(fallbackCfg.profileHandle).toBe('@otenkigirl_exe');
+    expect(fallbackCfg.bio).toContain('新海誠監督作品');
+    expect(fallbackCfg.socialLinks.length).toBe(5);
   });
 });

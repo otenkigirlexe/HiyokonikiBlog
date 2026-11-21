@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Home from '@/app/page';
 import PostList from '@/app/components/PostList';
 import FeaturedPostCard from '@/app/components/FeaturedPostCard';
-import { PostMeta } from '@/lib/posts';
+import { getAllPosts, PostMeta } from '@/lib/posts';
 
 const createMockPosts = (count: number): PostMeta[] =>
   Array.from({ length: count }, (_, i) => {
@@ -323,6 +323,10 @@ describe('02_ホーム右カラム・最新記事・記事一覧・ページネ�
 
     titles = Array.from(container.querySelectorAll('.post-card-title')).map(el => el.textContent);
     expect(titles).toEqual(['古い記事', '新しい記事']);
+
+    // もう一度クリックして新しい順に戻ることも確認
+    fireEvent.click(screen.getByLabelText('並び替えを切り替え'));
+    expect(screen.getByText('新しい順 ↓')).toBeInTheDocument();
   });
 
   it('02_状態復元_01 検索・年月・並び順を適用して記事をクリックし「← 記事一覧へ戻る」で戻ると条件が復元され、直接アクセス時は初期化されること', () => {
@@ -353,5 +357,262 @@ describe('02_ホーム右カラム・最新記事・記事一覧・ページネ�
     expect((screen.getByLabelText('記事を検索') as HTMLInputElement).value).toBe('');
     expect(screen.getByText('新しい順 ↓')).toBeInTheDocument();
     expect(screen.getByText('3 Posts')).toBeInTheDocument();
+  });
+
+  it('02_状態復元_02 破損JSON・不正型フィルタ・不正ページ番号・UUIDv7検索・すべて再選択・ResizeObserver・画像loadイベントが正常動作すること', () => {
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => {
+      cb(0);
+      return 0;
+    });
+
+    // 1. 破損JSONの filter_state（年・月ソートの昇順/降順両比較を通す並び順）
+    sessionStorage.setItem('hiyokoniki_restore_active', 'true');
+    sessionStorage.setItem('hiyokoniki_list_filter_state', '{broken');
+    const posts: PostMeta[] = [
+      { slug: '20250505', title: '2025年記事', date: '2025-05-05' },
+      { slug: '20260906', title: '9月記事', date: '2026-09-06' },
+      { slug: '20260802', title: '8月記事', date: '' }, // date空 → slugから年月抽出
+      { slug: '20261002', title: '10月記事', date: '2026-10-02' },
+      { slug: '2026xx', title: '月不正記事', date: '2026-xx' },
+      { slug: 'invalid', title: '不正日付記事', date: '' }, // 年月マッチなし
+    ];
+    const { unmount: u1 } = render(<PostList posts={posts} />);
+    expect(screen.getByText('6 Posts')).toBeInTheDocument();
+    u1();
+
+    // 2. 不正型の filter_state
+    sessionStorage.setItem('hiyokoniki_restore_active', 'true');
+    sessionStorage.setItem(
+      'hiyokoniki_list_filter_state',
+      JSON.stringify({ searchQuery: 123, selectedYear: null, selectedMonth: 9, sortOrder: 'invalid', visibleCount: 1 })
+    );
+    const { unmount: u2 } = render(<PostList posts={posts} />);
+    expect(screen.getByText('6 Posts')).toBeInTheDocument();
+    u2();
+
+    // 3. 不正な return_page（NaN）かつ filter_state なし、および return_page 自体なし
+    sessionStorage.removeItem('hiyokoniki_list_filter_state');
+    sessionStorage.setItem('hiyokoniki_restore_active', 'true');
+    sessionStorage.setItem('hiyokoniki_return_page', 'not-a-number');
+    const { unmount: u3 } = render(<PostList posts={posts} />);
+    expect(screen.getByText('6 Posts')).toBeInTheDocument();
+    u3();
+
+    sessionStorage.removeItem('hiyokoniki_return_page');
+    sessionStorage.setItem('hiyokoniki_restore_active', 'true');
+    const { unmount: u3b } = render(<PostList posts={posts} />);
+    expect(screen.getByText('6 Posts')).toBeInTheDocument();
+    u3b();
+
+    // 4. 年別「すべて」・月別「XXXX年すべて」再選択 ＋ UUIDv7 による0件検索
+    const { unmount: u4 } = render(<PostList posts={posts} />);
+    fireEvent.click(screen.getByRole('button', { name: /2026/ }));
+    fireEvent.click(screen.getByRole('button', { name: /8月/ }));
+    fireEvent.click(screen.getByRole('button', { name: '2026年すべて' }));
+    fireEvent.click(screen.getByRole('button', { name: 'すべて' }));
+    fireEvent.change(screen.getByLabelText('記事を検索'), {
+      target: { value: '018f3a5e-7a1b-7a1b-8a1b-7a1b8a1b7a1b' },
+    });
+    expect(screen.getByText('0 / 6 Posts')).toBeInTheDocument();
+    u4();
+
+    // 5. ResizeObserver と未読み込み画像（img.complete=false）の load イベント・クリーンアップ
+    let roCallback: (() => void) | null = null;
+    const origRO = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = class {
+      constructor(cb: any) {
+        roCallback = cb;
+      }
+      observe() {}
+      disconnect() {}
+    } as any;
+
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = `
+      <div class="home-layout">
+        <aside class="left-column" style="top: 0px;"><div class="card-frame"><img src="/header.webp" /></div></aside>
+      </div>
+      <footer class="site-footer"></footer>
+    `;
+    const imgEl = wrapper.querySelector('img') as HTMLImageElement;
+    Object.defineProperty(imgEl, 'complete', { value: false, configurable: true });
+    document.body.appendChild(wrapper);
+
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1200 });
+    const { unmount: u5 } = render(<PostList posts={posts} />);
+    if (roCallback) (roCallback as () => void)();
+    fireEvent(imgEl, new Event('load'));
+    u5();
+
+    document.body.removeChild(wrapper);
+    globalThis.ResizeObserver = origRO;
+    rafSpy.mockRestore();
+  });
+
+  it('02_フィルター_03 実データのすべての「年」ボタンおよび各年内のすべての「月」ボタンを順番にクリックし、該当する年月の記事と件数が100%一致して表示されること', () => {
+    const realListPosts = getAllPosts().slice(1);
+    const { container } = render(<PostList posts={realListPosts} />);
+
+    const yearGroup = screen.getByRole('group', { name: '年別フィルター' });
+    const yearButtons = Array.from(yearGroup.querySelectorAll('button')).filter(
+      btn => btn.textContent?.trim() !== 'すべて'
+    );
+    expect(yearButtons.length).toBeGreaterThanOrEqual(6);
+
+    for (const yearBtn of yearButtons) {
+      const match = yearBtn.textContent?.trim().match(/^(\d{4})\((\d+)\)$/);
+      expect(match).not.toBeNull();
+      const [, year, expectedYearCount] = match!;
+
+      // 年ボタンをクリック
+      fireEvent.click(yearBtn);
+      expect(screen.getByText(`${expectedYearCount} / ${realListPosts.length} Posts`)).toBeInTheDocument();
+
+      // 表示された記事の日付がすべて選択した年であること
+      const visibleDates = Array.from(container.querySelectorAll('.post-card time')).map(el => el.textContent || '');
+      expect(visibleDates.length).toBeGreaterThan(0);
+      for (const d of visibleDates) {
+        expect(d.startsWith(`${year}-`)).toBe(true);
+      }
+
+      // その年に月別フィルター（2ヶ月以上）が展開されている場合、全月ボタンを順番にクリックして検証
+      const monthGroup = screen.queryByRole('group', { name: '月別フィルター' });
+      if (monthGroup) {
+        const monthButtons = Array.from(monthGroup.querySelectorAll('button')).filter(
+          btn => !btn.textContent?.includes('すべて')
+        );
+        for (const monthBtn of monthButtons) {
+          const mMatch = monthBtn.textContent?.trim().match(/^(\d{1,2})月\((\d+)\)$/);
+          expect(mMatch).not.toBeNull();
+          const [, monthNum, expectedMonthCount] = mMatch!;
+          const paddedMonth = monthNum.padStart(2, '0');
+
+          fireEvent.click(monthBtn);
+          expect(screen.getByText(`${expectedMonthCount} / ${realListPosts.length} Posts`)).toBeInTheDocument();
+
+          const monthDates = Array.from(container.querySelectorAll('.post-card time')).map(el => el.textContent || '');
+          expect(monthDates.length).toBeGreaterThan(0);
+          for (const d of monthDates) {
+            expect(d.startsWith(`${year}-${paddedMonth}-`)).toBe(true);
+          }
+        }
+      }
+    }
+
+    // 「すべて」に戻すと全件表示に戻ること
+    fireEvent.click(screen.getByRole('button', { name: 'すべて' }));
+    expect(screen.getByText(`${realListPosts.length} Posts`)).toBeInTheDocument();
+  });
+
+  it('02_検索_03 実データでプレースホルダー例文（Liella! / 伊達さゆり / 2023-09）がすべてヒットし、並び順切り替えで最新・最古が入れ替わること', () => {
+    const realListPosts = getAllPosts().slice(1);
+    const { container } = render(<PostList posts={realListPosts} />);
+
+    const searchInput = screen.getByLabelText('記事を検索');
+    for (const sampleKeyword of ['Liella!', '伊達さゆり', '2023-09']) {
+      fireEvent.change(searchInput, { target: { value: sampleKeyword } });
+      const cards = container.querySelectorAll('.post-card');
+      expect(cards.length).toBeGreaterThan(0);
+    }
+
+    // クリアして並び順を古い順へ切り替え → 最古記事（2021-06-10）が先頭に来ること
+    fireEvent.click(screen.getByLabelText('検索をクリア'));
+    fireEvent.click(screen.getByLabelText('並び替えを切り替え'));
+    const firstDateAsc = container.querySelector('.post-card time')?.textContent;
+    expect(firstDateAsc).toBe(realListPosts[realListPosts.length - 1].date);
+
+    // 再度新しい順へ戻す → 一覧先頭記事が戻ること
+    fireEvent.click(screen.getByLabelText('並び替えを切り替え'));
+    const firstDateDesc = container.querySelector('.post-card time')?.textContent;
+    expect(firstDateDesc).toBe(realListPosts[0].date);
+  });
+
+  it('02_複合操作_01 実データから動的に取得した全「年」×「並び順(新しい順/古い順)」×「検索(なし/1語/2語AND/UUIDv7 0件)」および最新年の全「月」複合条件がすべて期待件数・順序と100%一致すること', () => {
+    const realListPosts = getAllPosts().slice(1);
+    const { container } = render(<PostList posts={realListPosts} />);
+
+    const searchInput = screen.getByLabelText('記事を検索');
+    const sortBtn = screen.getByLabelText('並び替えを切り替え');
+    const yearGroup = screen.getByRole('group', { name: '年別フィルター' });
+    const yearBtns = Array.from(yearGroup.querySelectorAll('button'));
+
+    const searchCases = ['', 'Liella!', 'Liella! 2026', '018f3a5e-7a1b-7a1b-8a1b-7a1b8a1b7a1b'];
+    let currentSort: 'desc' | 'asc' = 'desc';
+
+    const assertExpected = (year: string, month: string, query: string, sort: 'desc' | 'asc') => {
+      const kws = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      const expected = realListPosts.filter(p => {
+        if (year !== 'all' && !p.date.startsWith(`${year}-`)) return false;
+        if (year !== 'all' && month !== 'all' && !p.date.startsWith(`${year}-${month}-`)) return false;
+        if (kws.length > 0) {
+          const h = `${p.title} ${p.excerpt || ''} ${p.date} ${p.slug}`.toLowerCase();
+          return kws.every(k => h.includes(k));
+        }
+        return true;
+      });
+      const ordered = sort === 'asc' ? [...expected].reverse() : expected;
+      const isFiltered = query.trim() !== '' || year !== 'all' || month !== 'all';
+
+      // 件数バッジの一致を検証
+      const expectedBadge = isFiltered
+        ? `${ordered.length} / ${realListPosts.length} Posts`
+        : `${realListPosts.length} Posts`;
+      expect(screen.getByText(expectedBadge)).toBeInTheDocument();
+
+      // 表示中のカード順序（昇順/降順）と先頭記事を検証
+      const displayedDates = Array.from(container.querySelectorAll('.post-card time')).map(el => el.textContent || '');
+      expect(displayedDates.length).toBe(Math.min(10, ordered.length));
+      if (ordered.length > 0) {
+        expect(displayedDates[0]).toBe(ordered[0].date);
+        for (let i = 0; i < displayedDates.length - 1; i++) {
+          if (sort === 'desc') {
+            expect(displayedDates[i] >= displayedDates[i + 1]).toBe(true);
+          } else {
+            expect(displayedDates[i] <= displayedDates[i + 1]).toBe(true);
+          }
+        }
+      }
+    };
+
+    // 1. 動的に取得した全「年（すべて含む）」×「検索4種」×「並び順2種」の全組み合わせを網羅検証
+    for (const yBtn of yearBtns) {
+      const label = yBtn.textContent?.trim() || '';
+      const year = label === 'すべて' ? 'all' : label.slice(0, 4);
+      fireEvent.click(yBtn);
+
+      for (const query of searchCases) {
+        fireEvent.change(searchInput, { target: { value: query } });
+
+        // 現在の並び順で検証
+        assertExpected(year, 'all', query, currentSort);
+
+        // 並び順を切り替えてもう一方も検証
+        fireEvent.click(sortBtn);
+        currentSort = currentSort === 'desc' ? 'asc' : 'desc';
+        assertExpected(year, 'all', query, currentSort);
+      }
+    }
+
+    // 2. 最新年の全「月」×「検索(なし/1語)」×「並び順2種」の複合条件も網羅検証
+    const latestYearBtn = yearBtns.find(b => b.textContent?.trim() !== 'すべて')!;
+    const latestYear = latestYearBtn.textContent!.trim().slice(0, 4);
+    fireEvent.click(latestYearBtn);
+    const monthGroup = screen.queryByRole('group', { name: '月別フィルター' });
+    if (monthGroup) {
+      const monthBtns = Array.from(monthGroup.querySelectorAll('button')).filter(
+        b => !b.textContent?.includes('すべて')
+      );
+      for (const mBtn of monthBtns) {
+        const mNum = mBtn.textContent!.trim().match(/^(\d{1,2})月/)![1].padStart(2, '0');
+        fireEvent.click(mBtn);
+        for (const query of ['', 'Liella!']) {
+          fireEvent.change(searchInput, { target: { value: query } });
+          assertExpected(latestYear, mNum, query, currentSort);
+          fireEvent.click(sortBtn);
+          currentSort = currentSort === 'desc' ? 'asc' : 'desc';
+          assertExpected(latestYear, mNum, query, currentSort);
+        }
+      }
+    }
   });
 });

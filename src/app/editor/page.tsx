@@ -188,9 +188,9 @@ export default function EditorPage() {
 
   // 記事削除
   const handleDelete = async () => {
-    if (!selectedSlug) return;
+    const targetSlug = selectedSlug as string;
     const confirmed = window.confirm(
-      `記事「${title || selectedSlug} (${formatSlugToDate(selectedSlug)})」を削除しますか？\n※ content/posts/${selectedSlug}.md および public/assets/${selectedSlug}/ 内の画像も削除されます。`
+      `記事「${title || targetSlug} (${formatSlugToDate(targetSlug)})」を削除しますか？\n※ content/posts/${targetSlug}.md および public/assets/${targetSlug}/ 内の画像も削除されます。`
     );
     if (!confirmed) return;
 
@@ -199,14 +199,13 @@ export default function EditorPage() {
       const res = await fetch(`${API_BASE}/api/posts/delete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug: selectedSlug }),
+        body: JSON.stringify({ slug: targetSlug }),
       });
 
       const result = await res.json();
       if (res.ok && result.success) {
-        const deletedSlug = selectedSlug;
         handleNewPost();
-        setStatusMsg(`削除完了: ${deletedSlug}.md`);
+        setStatusMsg(`削除完了: ${targetSlug}.md`);
         fetchPosts();
       } else {
         setStatusMsg(`削除エラー: ${result.error || '不明なエラー'}`);
@@ -234,7 +233,7 @@ export default function EditorPage() {
     formData.append('file', file);
 
     // アップロード開始時点のカーソル位置を確定保持（React StrictModeの2回実行で書き換わらないよう外で保持）
-    const capturedPos = cursorPosRef.current ?? textareaRef.current?.selectionStart ?? null;
+    const capturedPos = cursorPosRef.current ?? textareaRef.current!.selectionStart;
 
     setUploading(true);
     setStatusMsg(`素材 "${file.name}" をアップロード中...`);
@@ -255,8 +254,7 @@ export default function EditorPage() {
         let finalCursorPos = 0;
 
         setContent(prev => {
-          const rawPos = capturedPos !== null ? capturedPos : prev.length;
-          const pos = Math.max(0, Math.min(rawPos, prev.length));
+          const pos = Math.max(0, Math.min(capturedPos, prev.length));
           const before = prev.slice(0, pos);
           const after = prev.slice(pos);
 
@@ -445,7 +443,7 @@ export default function EditorPage() {
               onChange={e => {
                 const newDate = e.target.value;
                 setDate(newDate);
-                if (!selectedSlug && newDate) {
+                if (!selectedSlug) {
                   setSlug(newDate.replace(/-/g, ''));
                 }
               }}

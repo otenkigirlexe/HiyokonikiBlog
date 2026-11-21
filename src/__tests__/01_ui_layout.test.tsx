@@ -1,10 +1,11 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import RootLayout, { metadata } from '@/app/layout';
 import Home from '@/app/page';
 import DevEditorLink from '@/app/components/DevEditorLink';
-import FooterCreditsWithModal from '@/app/components/FooterCreditsWithModal';
+import FooterCreditsWithModal, { BuildInfoData } from '@/app/components/FooterCreditsWithModal';
+import * as postsModule from '@/lib/posts';
 import { getSiteConfig } from '@/lib/posts';
 
 describe('01_UI・レイアウト・環境分岐テスト', () => {
@@ -59,7 +60,7 @@ describe('01_UI・レイアウト・環境分岐テスト', () => {
 
     const footerCredits = container.querySelector('.footer-credits');
     expect(footerCredits).toBeInTheDocument();
-    expect(footerCredits?.textContent).toContain('ver: 0.0.2 / build: develop / © HiyokoNiki All Rights Reserved.');
+    expect(footerCredits?.textContent).toContain('ver: 0.0.2 / build: dev / © HiyokoNiki All Rights Reserved.');
   });
 
   it('01_UI/環境分岐_01 ローカルビルド時にフッターに記事エディターとヘッダーエディターの2つのリンクが表示されること', () => {
@@ -203,7 +204,9 @@ describe('01_UI・レイアウト・環境分岐テスト', () => {
     for (let i = 0; i < 20; i++) fireEvent.click(buildTriggerEl);
 
     const copyBtn = screen.getByRole('button', { name: 'コピー' });
-    fireEvent.click(copyBtn);
+    await act(async () => {
+      fireEvent.click(copyBtn);
+    });
 
     expect(writeTextMock).toHaveBeenCalledTimes(1);
     const copiedText = writeTextMock.mock.calls[0][0];
@@ -226,9 +229,88 @@ describe('01_UI・レイアウト・環境分岐テスト', () => {
     fireEvent.click(buildTriggerEl);
     expect(screen.getByRole('dialog')).toBeInTheDocument();
 
+    // モーダルコンテンツ内部クリックも伝播を止めて閉じないこと
+    const modalContent = container.querySelector('.env-modal-content')!;
+    fireEvent.click(modalContent);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
     // 「閉じる」ボタンを押したときのみ閉じ、body.style.overflow が解除されること
     fireEvent.click(screen.getByRole('button', { name: '閉じる' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(document.body.style.overflow).not.toBe('hidden');
+  });
+
+  it('01_UI/環境情報_05 本番ビルド時（NEXT_PUBLIC_IS_LOCAL_BUILD=false）かつFAILEDステータス時にコミット番号と赤色ステータスが表示されること', () => {
+    process.env.NEXT_PUBLIC_IS_LOCAL_BUILD = 'false';
+    const failedInfo: BuildInfoData = {
+      app: 'HiyokonikiBlog',
+      version: '0.0.2',
+      build: 'abc1234',
+      commit: 'abc1234567890abcdef1234567890abcdef12345',
+      environment: 'production',
+      buildDate: '2026/11/22 03:00:00 JST',
+      test: { status: 'FAILED', total: 10, passed: 9, failed: 1, skipped: 0, successRate: '90.0%' },
+      coverage: { lines: '90.00%', functions: '90.00%', branches: '90.00%', statements: '90.00%' },
+    };
+    render(<FooterCreditsWithModal initialInfo={failedInfo} />);
+
+    const buildTriggerEl = screen.getByTestId('footer-build-trigger');
+    expect(buildTriggerEl).toHaveTextContent('abc1234');
+    for (let i = 0; i < 20; i++) fireEvent.click(buildTriggerEl);
+
+    expect(screen.getByText('production')).toBeInTheDocument();
+    const failedEl = screen.getByText('FAILED');
+    expect(failedEl).toBeInTheDocument();
+  });
+
+  it('01_UI/環境情報_06 clipboard API 失敗時・未定義時に execCommand フォールバックが動作し、フォールバック例外時もクラッシュしないこと', async () => {
+    // 1. clipboard.writeText が reject するケース
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockRejectedValue(new Error('denied')) },
+    });
+    const execCommandMock = vi.fn().mockReturnValue(true);
+    document.execCommand = execCommandMock;
+
+    const { unmount } = render(<FooterCreditsWithModal />);
+    const trigger1 = screen.getByTestId('footer-build-trigger');
+    for (let i = 0; i < 20; i++) fireEvent.click(trigger1);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'コピー' }));
+    });
+    expect(execCommandMock).toHaveBeenCalledWith('copy');
+    expect(screen.getByRole('button', { name: 'コピー完了' })).toBeInTheDocument();
+    unmount();
+
+    // 2. clipboard 未定義かつ execCommand が例外を投げるケース
+    Object.assign(navigator, { clipboard: undefined });
+    document.execCommand = vi.fn(() => {
+      throw new Error('execCommand failed');
+    });
+
+    render(<FooterCreditsWithModal />);
+    const trigger2 = screen.getByTestId('footer-build-trigger');
+    for (let i = 0; i < 20; i++) fireEvent.click(trigger2);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'コピー' }));
+    });
+    expect(screen.getByRole('button', { name: 'コピー完了' })).toBeInTheDocument();
+  });
+
+  it('01_UI/ホーム境界値_01 記事が0件かつ profileHandle が空の場合でも Home がクラッシュせず描画されること', () => {
+    vi.spyOn(postsModule, 'getAllPosts').mockReturnValueOnce([]);
+    vi.spyOn(postsModule, 'getSiteConfig').mockReturnValueOnce({
+      headerCaption: 'テストキャプション',
+      profileName: 'ひよこニキ',
+      profileHandle: '',
+      bio: 'テストBio',
+      socialLinks: [],
+    });
+
+    render(<Home />);
+    expect(screen.queryByText('最新記事')).not.toBeInTheDocument();
+    expect(screen.getByText('0 Posts')).toBeInTheDocument();
+    vi.restoreAllMocks();
   });
 });

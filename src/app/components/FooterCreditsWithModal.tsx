@@ -26,16 +26,20 @@ export interface BuildInfoData {
   };
 }
 
-export default function FooterCreditsWithModal() {
+export default function FooterCreditsWithModal({
+  initialInfo = buildInfoData,
+}: {
+  initialInfo?: BuildInfoData;
+} = {}) {
   const [tapCount, setTapCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const info: BuildInfoData = buildInfoData;
+  const info: BuildInfoData = initialInfo;
   const isLocal = process.env.NEXT_PUBLIC_IS_LOCAL_BUILD === 'true';
   const envLabel = isLocal ? 'development' : info.environment;
-  const buildLabel = isLocal ? 'develop' : info.build;
-  const commitLabel = isLocal ? 'develop' : info.commit;
+  const buildLabel = isLocal ? 'dev' : info.build;
+  const commitLabel = isLocal ? 'dev' : info.commit;
 
   // モーダル表示中は背面ページのスクロールを完全ロックし、閉じたら解除する
   useEffect(() => {

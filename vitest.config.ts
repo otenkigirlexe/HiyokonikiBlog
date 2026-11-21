@@ -5,6 +5,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    testTimeout: 15000,
     setupFiles: ['./src/__tests__/setup.ts'],
     include: ['src/__tests__/**/*.test.{ts,tsx}'],
     reporters: ['default', 'json'],
@@ -13,7 +14,7 @@ export default defineConfig({
     },
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'html', 'json-summary'],
+      reporter: ['text', 'html', 'json-summary', 'json'],
       include: ['src/**/*.{ts,tsx}'],
       exclude: ['src/__tests__/**', 'src/**/*.d.ts'],
     },

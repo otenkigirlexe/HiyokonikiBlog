@@ -10,6 +10,13 @@ interface PostListProps {
 
 const ITEMS_PER_LOAD = 10;
 
+function extractYearMonth(post: PostMeta): { year: string; month: string } {
+  const dateStr = post.date || '';
+  const year = dateStr.slice(0, 4) || post.slug.slice(0, 4);
+  const month = dateStr.length >= 7 ? dateStr.slice(5, 7) : post.slug.slice(4, 6);
+  return { year, month };
+}
+
 export default function PostList({ posts }: PostListProps) {
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_LOAD);
   const [searchQuery, setSearchQuery] = useState('');
@@ -21,7 +28,7 @@ export default function PostList({ posts }: PostListProps) {
   const yearOptions = useMemo(() => {
     const counts = new Map<string, number>();
     for (const post of posts) {
-      const year = (post.date || post.slug || '').slice(0, 4);
+      const { year } = extractYearMonth(post);
       if (/^\d{4}$/.test(year)) {
         counts.set(year, (counts.get(year) || 0) + 1);
       }
@@ -36,16 +43,14 @@ export default function PostList({ posts }: PostListProps) {
     if (selectedYear === 'all') return [];
     const counts = new Map<string, number>();
     for (const post of posts) {
-      const dateStr = post.date || '';
-      const year = dateStr.slice(0, 4) || post.slug.slice(0, 4);
+      const { year, month } = extractYearMonth(post);
       if (year !== selectedYear) continue;
-      const month = dateStr.length >= 7 ? dateStr.slice(5, 7) : post.slug.slice(4, 6);
       if (/^\d{2}$/.test(month)) {
         counts.set(month, (counts.get(month) || 0) + 1);
       }
     }
     return Array.from(counts.entries())
-      .sort((a, b) => (a[0] > b[0] ? 1 : -1))
+      .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([month, count]) => ({ month, count }));
   }, [posts, selectedYear]);
 
@@ -58,9 +63,7 @@ export default function PostList({ posts }: PostListProps) {
       .filter(Boolean);
 
     const matched = posts.filter(post => {
-      const dateStr = post.date || '';
-      const year = dateStr.slice(0, 4) || post.slug.slice(0, 4);
-      const month = dateStr.length >= 7 ? dateStr.slice(5, 7) : post.slug.slice(4, 6);
+      const { year, month } = extractYearMonth(post);
 
       if (selectedYear !== 'all' && year !== selectedYear) {
         return false;
@@ -167,10 +170,10 @@ export default function PostList({ posts }: PostListProps) {
     const leftCard = document.querySelector('.left-column .card-frame');
     const footer = document.querySelector('.site-footer');
     let ro: ResizeObserver | null = null;
-    if (typeof ResizeObserver !== 'undefined') {
+    if (typeof ResizeObserver !== 'undefined' && leftCard && footer) {
       ro = new ResizeObserver(() => updateBottomAlignment());
-      if (leftCard) ro.observe(leftCard);
-      if (footer) ro.observe(footer);
+      ro.observe(leftCard);
+      ro.observe(footer);
     }
 
     const img = document.querySelector('.left-column img') as HTMLImageElement | null;

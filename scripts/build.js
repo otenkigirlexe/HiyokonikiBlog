@@ -5,7 +5,8 @@ const path = require('path');
 const nextBin = require.resolve('next/dist/bin/next');
 const nodeCmd = process.execPath;
 const isCiFlag = process.argv.includes('--ci');
-const isProdExport = process.env.CF_PAGES === '1' || isCiFlag;
+const isCloudflare = process.env.CF_PAGES === '1' || Boolean(process.env.CF_PAGES_COMMIT_SHA);
+const isProdExport = isCloudflare || isCiFlag;
 
 function runTestsNonBlocking() {
   if (!isProdExport) return;
@@ -29,19 +30,18 @@ function generateBuildInfo() {
   const pkgPath = path.join(process.cwd(), 'package.json');
   const pkg = fs.existsSync(pkgPath) ? JSON.parse(fs.readFileSync(pkgPath, 'utf8')) : { version: '0.0.1' };
 
-  let commitFull = process.env.CF_PAGES_COMMIT_SHA || 'develop';
-  let commitShort = commitFull !== 'develop' ? commitFull.slice(0, 7) : 'develop';
+  let commitFull = 'dev';
+  let commitShort = 'dev';
 
-  if (isProdExport) {
+  if (isCloudflare) {
+    commitFull = process.env.CF_PAGES_COMMIT_SHA || 'dev';
+    commitShort = commitFull !== 'dev' ? commitFull.slice(0, 7) : 'dev';
     try {
       commitFull = execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
       commitShort = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
     } catch (_) {
-      // Fallback to env or 'develop'
+      // Fallback to CF_PAGES_COMMIT_SHA or 'dev'
     }
-  } else {
-    commitFull = 'develop';
-    commitShort = 'develop';
   }
 
   // Format JST Date: YYYY/MM/DD HH:mm:ss JST
@@ -109,10 +109,10 @@ function generateBuildInfo() {
       const cs = JSON.parse(fs.readFileSync(coverageSummaryPath, 'utf8'));
       if (cs.total) {
         coverageStats = {
-          lines: `${cs.total.lines.pct}%`,
-          functions: `${cs.total.functions.pct}%`,
-          branches: `${cs.total.branches.pct}%`,
-          statements: `${cs.total.statements.pct}%`,
+          lines: `${Number(cs.total.lines.pct).toFixed(2)}%`,
+          functions: `${Number(cs.total.functions.pct).toFixed(2)}%`,
+          branches: `${Number(cs.total.branches.pct).toFixed(2)}%`,
+          statements: `${Number(cs.total.statements.pct).toFixed(2)}%`,
         };
       }
     } catch (_) {}
@@ -123,7 +123,7 @@ function generateBuildInfo() {
     version: pkg.version || '0.0.1',
     build: commitShort,
     commit: commitFull,
-    environment: isProdExport ? 'production' : 'development',
+    environment: isCloudflare ? 'production' : 'development',
     buildDate,
     test: testStats,
     coverage: coverageStats,

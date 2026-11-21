@@ -193,4 +193,84 @@ describe('05_ヘッダー＆プロフィール編集 (/header-editor/) テスト
       expect(screen.getByText(/設定の読み込みエラー: Network disconnected/)).toBeInTheDocument();
     });
   });
+
+  it('05_ヘッダーエディター_11 上へ移動・空設定レスポンス・空フィールドプレビュー・画像付き/画像なし保存・ファイルキャンセル・保存時通信エラーが網羅動作すること', async () => {
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+    // 1. /api/site が空オブジェクトを返した場合（各 if の false 分岐）＋ 画像付き保存（imageUpdated=true, socialLinks未返却）＋ 画像なし保存（imageUpdated=false）
+    let headerSaveCount = 0;
+    global.fetch = vi.fn(async (url: any) => {
+      const u = String(url);
+      if (u.endsWith('/api/site')) {
+        return { ok: true, json: async () => ({}) } as any;
+      }
+      if (u.endsWith('/api/site/header')) {
+        headerSaveCount++;
+        return {
+          ok: true,
+          json: async () => ({ success: true, imageUpdated: headerSaveCount === 1 }),
+        } as any;
+      }
+      return { ok: false, json: async () => ({}) } as any;
+    });
+
+    const { container, unmount } = render(<HeaderEditorPage />);
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/例: 2024年/)).toBeInTheDocument();
+    });
+
+    // 2番目のリンクの「↑」ボタンをクリック
+    const upButtons = screen.getAllByTitle('上へ移動');
+    fireEvent.click(upButtons[1]);
+
+    // 説明文・表示名・Bioを空にして未入力フォールバックプレビューを確認
+    fireEvent.change(screen.getByPlaceholderText(/例: 2024年/), { target: { value: '' } });
+    fireEvent.change(screen.getByPlaceholderText('ひよこニキ'), { target: { value: '' } });
+    fireEvent.change(screen.getByPlaceholderText(/自己紹介文を入力/), { target: { value: '' } });
+    expect(screen.getByText('（説明文未入力）')).toBeInTheDocument();
+    expect(screen.getByText('（自己紹介文未入力）')).toBeInTheDocument();
+
+    // ファイル選択キャンセル（files=[]）→ その後に画像ファイルを選択して保存（imageUpdated=true）
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(fileInput, { target: { files: [] } });
+    const mockFile = new File(['dummy'], 'new-header.webp', { type: 'image/webp' });
+    fireEvent.change(fileInput, { target: { files: [mockFile] } });
+
+    fireEvent.click(screen.getByRole('button', { name: '変更を確定して保存する' }));
+    await waitFor(() => {
+      expect(screen.getByText(/既存の header\.webp を削除し/)).toBeInTheDocument();
+    });
+
+    // 2回目の保存（画像なし：imageUpdated=false）
+    fireEvent.click(screen.getByRole('button', { name: '変更を確定して保存する' }));
+    await waitFor(() => {
+      expect(screen.getByText(/ヘッダー説明文・プロフィール（Bio）・各種リンクを更新しました/)).toBeInTheDocument();
+    });
+    unmount();
+
+    // 2. 保存APIがエラー詳細なし（error未定義）および通信エラー（reject）の場合
+    let callCount = 0;
+    global.fetch = vi.fn(async (url: any) => {
+      const u = String(url);
+      if (u.endsWith('/api/site')) {
+        return { ok: true, json: async () => ({}) } as any;
+      }
+      callCount++;
+      if (callCount === 1) {
+        return { ok: false, json: async () => ({}) } as any;
+      }
+      throw new Error('Save timeout');
+    });
+
+    render(<HeaderEditorPage />);
+    fireEvent.click(screen.getByRole('button', { name: '変更を確定して保存する' }));
+    await waitFor(() => {
+      expect(screen.getByText(/保存エラー: 不明なエラー/)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '変更を確定して保存する' }));
+    await waitFor(() => {
+      expect(screen.getByText(/通信エラー: Save timeout/)).toBeInTheDocument();
+    });
+    alertSpy.mockRestore();
+  });
 });

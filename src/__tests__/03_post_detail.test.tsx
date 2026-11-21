@@ -4,6 +4,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import PostPage, { generateStaticParams, generateMetadata } from '@/app/[slug]/page';
 import MarkdownRenderer from '@/app/components/MarkdownRenderer';
 import BackToListLink from '@/app/components/BackToListLink';
+import * as postsModule from '@/lib/posts';
 import { getAllPosts, getPostBySlug } from '@/lib/posts';
 
 const notFoundMock = vi.fn(() => {
@@ -163,5 +164,35 @@ describe('03_個別記事詳細・前後ナビゲーション・ページ逆算�
 
     render(<MarkdownRenderer content="018f3a5e-7a1b-7a1b-8a1b-7a1b8a1b7a1b" />);
     expect(screen.getByText('018f3a5e-7a1b-7a1b-8a1b-7a1b8a1b7a1b')).toBeInTheDocument();
+  });
+
+  it('03_記事詳細_12 generateMetadata で excerpt が空の記事にフォールバック description が設定されること', async () => {
+    vi.spyOn(postsModule, 'getPostBySlug').mockReturnValueOnce({
+      slug: '20260101',
+      title: '抜粋なし記事',
+      date: '2026-01-01',
+      excerpt: '',
+      content: '本文',
+      listPage: 1,
+      isFeatured: false,
+    });
+    const meta = await generateMetadata({ params: Promise.resolve({ slug: '20260101' }) });
+    expect(meta.description).toBe('抜粋なし記事の記事詳細');
+    vi.restoreAllMocks();
+  });
+
+  it('03_記事詳細_13 BackToListLink で isFeatured=true 遷移および sessionStorage 例外発生時にクラッシュしないこと', () => {
+    sessionStorage.setItem('hiyokoniki_from_list', 'true');
+    const { unmount } = render(<BackToListLink listPage={1} isFeatured={true} />);
+    fireEvent.click(screen.getByRole('link', { name: /記事一覧へ戻る/ }));
+    expect(sessionStorage.getItem('hiyokoniki_return_is_featured')).toBe('true');
+    unmount();
+
+    const spy = vi.spyOn(Storage.prototype, 'getItem').mockImplementationOnce(() => {
+      throw new Error('storage disabled');
+    });
+    render(<BackToListLink />);
+    fireEvent.click(screen.getByRole('link', { name: /記事一覧へ戻る/ }));
+    spy.mockRestore();
   });
 });
