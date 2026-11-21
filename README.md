@@ -2,7 +2,7 @@
 
 ![Tests](https://img.shields.io/badge/Tests-80%2B%20passed-brightgreen)
 ![Coverage](https://img.shields.io/badge/Coverage-%3E90%25-brightgreen)
-![Next.js](https://img.shields.io/badge/Next.js-16.4.4-black)
+![Next.js](https://img.shields.io/badge/Next.js-16.4.6-black)
 ![React](https://img.shields.io/badge/React-19.3.1-blue)
 ![TypeScript](https://img.shields.io/badge/TypeScript-7.0.2-3178C6)
 
@@ -68,7 +68,7 @@ Personal blog and homepage of **HiyokoNiki (`@otenkigirl_exe`)**, built as a fas
 
 ### 💻 Technologies
 
-- **Framework**: Next.js 16.4.4 (App Router, Static HTML Export `output: 'export'`)
+- **Framework**: Next.js 16.4.6 (App Router, Static HTML Export `output: 'export'`)
 - **Core Library**: React 19.3.1 / TypeScript 7.0.2
 - **Markdown & Metadata**: `marked` 18 + `gray-matter`
 - **Styling & Typography**: Vanilla CSS (`globals.css`) with CSS Custom Properties, responsive media queries, and Google Fonts (`Noto Sans JP` via `next/font/google`)
