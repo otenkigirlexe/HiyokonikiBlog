@@ -1,6 +1,6 @@
 {
   "app": "HiyokonikiBlog",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "build": "29882af",
   "commit": "29882af925909bb904ca9089ae1956dc86e2f751",
   "environment": "production",

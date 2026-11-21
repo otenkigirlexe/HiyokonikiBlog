@@ -20,12 +20,12 @@ Personal blog and homepage of **HiyokoNiki (`@otenkigirl_exe`)**, built as a fas
 
 | Feature | Description |
 | :--- | :--- |
-| **2-Column Homepage (`/`)** | Responsive 2-column layout featuring the header visual & profile card on the left, and the featured latest post + paginated post archive (10 posts/page) on the right. |
-| **Article Detail (`/[slug]/`)** | Legacy-compatible root URL structure (`/20260726/`), Markdown rendering (images, `<video>`, custom spacing), prev/next post navigation, and smart pagination page restoration (`sessionStorage`). |
+| **2-Column Homepage (`/`)** | Responsive 2-column layout featuring the header visual & profile card on the left, and the featured latest post + searchable/filterable post archive (keyword search, year/month filters, sort order toggle, and note-style Load More) on the right. |
+| **Article Detail (`/[slug]/`)** | Legacy-compatible root URL structure (`/20260726/`), Markdown rendering (images, `<video>`, custom spacing), prev/next post navigation, and smart list filter/scroll state restoration (`sessionStorage`). |
 | **Dynamic OGP & Twitter Cards** | Automatic per-article OpenGraph and Twitter `summary_large_image` metadata generation using the first image of each post (falling back to `/header.webp`). |
-| **Local Post Editor (`/editor/`)** | Local-only split-screen Markdown editor with real-time zero-latency preview (`useMemo`), multi-file media drag & drop upload (`/assets/<slug>/`), overwrite protection, and post/asset deletion. |
-| **Header & Profile Editor (`/header-editor/`)** | Local-only GUI editor for updating `public/header.webp` (transactional replacement), header caption, profile name/handle, multi-line bio, and social link chips (add, reorder, delete). |
-| **Environment & CI Diagnostics** | Hidden developer modal accessible by tapping the footer `build:` identifier 20 times, displaying Git SHA (`develop` locally), build timestamp (JST), Vitest results, and V8 coverage with 1-click clipboard copy. |
+| **Local Post Editor (`/editor/`)** | Local-only split-screen Markdown editor with sticky toolbar, real-time zero-latency preview (`useMemo`), automatic `cwebp -q 50` WebP conversion on upload, unused media auto-cleanup on save, overwrite protection, and post/asset deletion. |
+| **Header & Profile Editor (`/header-editor/`)** | Local-only GUI editor for updating `public/header.webp` (transactional replacement with automatic `cwebp -q 50` conversion), header caption, profile name/handle, multi-line bio, and social link chips (add, reorder, delete). |
+| **Environment & CI Diagnostics** | Hidden developer modal accessible by tapping the footer `build:` identifier 20 times, displaying Git SHA (`dev` locally), build timestamp (JST), Vitest results, and V8 coverage with 1-click clipboard copy. |
 
 ---
 
@@ -73,7 +73,7 @@ Personal blog and homepage of **HiyokoNiki (`@otenkigirl_exe`)**, built as a fas
 - **Markdown & Metadata**: `marked` 18 + `gray-matter`
 - **Styling & Typography**: Vanilla CSS (`globals.css`) with CSS Custom Properties, responsive media queries, and Google Fonts (`Noto Sans JP` via `next/font/google`)
 - **Local Editor Backend**: Node.js HTTP Server (`127.0.0.1:3001`) + `busboy` (multipart media upload & transactional file writes)
-- **Testing**: Vitest + React Testing Library + `@vitest/coverage-v8` (80+ automated test cases across 6 suites, >90% code coverage)
+- **Testing**: Vitest + React Testing Library + `@vitest/coverage-v8` (100+ automated test cases across 6 suites, 100% coverage)
 - **Hosting & CI/CD**: Cloudflare Pages
 
 ---
@@ -166,7 +166,7 @@ npm run editor
 ### Running Tests & Building
 
 ```powershell
-# Run Vitest unit & integration test suite (80 tests)
+# Run Vitest unit & integration test suite (100 tests)
 npm test
 
 # Run tests with V8 coverage report
@@ -183,17 +183,18 @@ npx serve out
 
 ## 🧪 Testing & Quality Assurance
 
-The project enforces strict automated quality checks across **6 test suites (80+ tests total, >90% code coverage)**:
+The project enforces strict automated quality checks across **6 test suites (100+ tests total, 100% coverage)**:
 
-- **>90% code coverage** tracked automatically on each CI build and embedded into the application's footer diagnostics modal.
+- **100+ unit, integration, and UI tests** covering navigation, keyword search, dynamic year/month filters, combined filter matrices, and server components.
+- **100% code coverage (Lines, Functions, Branches, Statements)** tracked automatically on each CI build and embedded into the application's footer diagnostics modal.
 - **Strict asset & relational integrity validation** ensuring all Markdown posts and referenced media files physically exist before deployment.
 
 1. **`01_ui_layout.test.tsx`**: Header/footer rendering, `site.json` profile & SNS chip reflection, local vs. production environment branching, OGP metadata, and the 20-tap developer diagnostics modal.
-2. **`02_post_list_pagination.test.tsx`**: Featured latest post card, 10-post pagination slicing, page transitions, `sessionStorage` page restoration, and boundary conditions (0 posts, 1 post, 11 posts).
+2. **`02_post_list_pagination.test.tsx`**: Featured latest post card, note-style Load More UI, real-time keyword search (including UUIDv7 zero-result check), exhaustive real-data year/month filter & sort combinations, and `sessionStorage` state restoration.
 3. **`03_post_detail.test.tsx`**: Static params generation, dynamic OGP image extraction, Markdown HTML rendering (`<img>`, `<video>`, custom `<br>` spacing), prev/next article boundaries, and 404 handling.
-4. **`04_post_editor.test.tsx`**: Local editor security guard in production, post loading, real-time preview, `409 Conflict` overwrite guard, media upload insertion, and post/asset deletion.
+4. **`04_post_editor.test.tsx`**: Local editor security guard in production, post loading, real-time preview, `409 Conflict` overwrite guard, media upload insertion, unused media cleanup, and post/asset deletion.
 5. **`05_header_editor.test.tsx`**: Live profile/caption preview, adding/reordering/deleting social links, image selection preview (`URL.createObjectURL`), and transactional save API verification.
-6. **`06_data_integrity.test.ts`**: Full scan of all 93+ Markdown files, slug uniqueness, `YYYY-MM-DD` date validation, 100% physical existence verification of all referenced images/videos in `public/assets/`, and `listPage` calculation invariants.
+6. **`06_data_integrity.test.ts`**: Full scan of all 100+ Markdown files, slug uniqueness, `YYYY-MM-DD` date validation, 100% physical existence verification of all referenced images/videos in `public/assets/`, and `listPage` calculation invariants.
 
 ---
 

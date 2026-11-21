@@ -60,7 +60,7 @@ describe('01_UI・レイアウト・環境分岐テスト', () => {
 
     const footerCredits = container.querySelector('.footer-credits');
     expect(footerCredits).toBeInTheDocument();
-    expect(footerCredits?.textContent).toContain('ver: 0.0.2 / build: dev / © HiyokoNiki All Rights Reserved.');
+    expect(footerCredits?.textContent).toContain('ver: 0.0.3 / build: dev / © HiyokoNiki All Rights Reserved.');
   });
 
   it('01_UI/環境分岐_01 ローカルビルド時にフッターに記事エディターとヘッダーエディターの2つのリンクが表示されること', () => {
@@ -170,7 +170,7 @@ describe('01_UI・レイアウト・環境分岐テスト', () => {
     expect(screen.getByText('App:')).toBeInTheDocument();
     expect(screen.getByText('HiyokonikiBlog')).toBeInTheDocument();
     expect(screen.getByText('Version:')).toBeInTheDocument();
-    expect(screen.getByText('0.0.2')).toBeInTheDocument();
+    expect(screen.getByText('0.0.3')).toBeInTheDocument();
     expect(screen.getByText('Build:')).toBeInTheDocument();
     expect(screen.getByText('Commit:')).toBeInTheDocument();
     expect(screen.getByText('Environment:')).toBeInTheDocument();
@@ -210,7 +210,7 @@ describe('01_UI・レイアウト・環境分岐テスト', () => {
 
     expect(writeTextMock).toHaveBeenCalledTimes(1);
     const copiedText = writeTextMock.mock.calls[0][0];
-    expect(copiedText).toContain('HiyokonikiBlog\nVersion: 0.0.2');
+    expect(copiedText).toContain('HiyokonikiBlog\nVersion: 0.0.3');
     expect(copiedText).toContain('\n\nTests\nStatus: PASSED');
     expect(copiedText).toContain('\n\nCoverage\nLines:');
   });
