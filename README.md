@@ -74,7 +74,7 @@ Personal blog and homepage of **HiyokoNiki (`@otenkigirl_exe`)**, built as a fas
 - **Styling & Typography**: Vanilla CSS (`globals.css`) with CSS Custom Properties, responsive media queries, and Google Fonts (`Noto Sans JP` via `next/font/google`)
 - **Local Editor Backend**: Node.js HTTP Server (`127.0.0.1:3001`) + `busboy` (multipart media upload & transactional file writes)
 - **Testing**: Vitest + React Testing Library + `@vitest/coverage-v8` (100+ automated test cases across 6 suites, 100% coverage)
-- **Hosting & CI/CD**: Cloudflare Pages
+- **Hosting & CI/CD**: Cloudflare Pages + GitHub Actions (daily scheduled builds at 04:00 JST)
 
 ---
 
@@ -82,6 +82,9 @@ Personal blog and homepage of **HiyokoNiki (`@otenkigirl_exe`)**, built as a fas
 
 ```text
 HiyokonikiBlog/
+├── .github/
+│   └── workflows/
+│       └── daily-build.yml           # Daily scheduled build trigger (04:00 JST)
 ├── content/
 │   ├── posts/                        # 93+ Markdown blog posts (<YYYYMMDD>.md)
 │   ├── site.json                     # Header caption, profile bio, and social links
