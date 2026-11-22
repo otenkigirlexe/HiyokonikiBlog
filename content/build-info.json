@@ -1,10 +1,10 @@
 {
   "app": "HiyokonikiBlog",
-  "version": "0.0.3",
-  "build": "29882af",
-  "commit": "29882af925909bb904ca9089ae1956dc86e2f751",
-  "environment": "production",
-  "buildDate": "2026/11/22 04:27:46 JST",
+  "version": "0.0.4",
+  "build": "dev",
+  "commit": "dev",
+  "environment": "development",
+  "buildDate": "2026/11/22 18:45:25 JST",
   "test": {
     "status": "PASSED",
     "total": 100,
